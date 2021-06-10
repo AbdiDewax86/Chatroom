@@ -2,6 +2,10 @@ import socket
 import threading
 
 def read_msg(clients, sock_cli, addr_cli, username_cli):
+    # clients = daftar client
+    # sock_cli = socket client (dipakai untuk kirim pesan (send(sock_cli, data))
+    # addr_cli = address client
+    # username_cli = username client (dipakai untuk iterasi clients (clients[username_cli][n])
     while True:
         # terima pesan
         data = sock_cli.recv(65535).decode("utf-8")
@@ -9,28 +13,84 @@ def read_msg(clients, sock_cli, addr_cli, username_cli):
             break
 
         # parsing pesan
-        dest, msg = data.split("|")
+        command, msg = data.split("|") # command dan isi pesan
 
-        msg = "<{}>: {}".format(username_cli, msg)
+        announce = "<{}>: {}|{}".format(username_cli, command, msg) # isi pesan setelah diformat (bcast dan send msg)
 
         # teruskan pesan ke semua client
-        if dest == "bcast":
-            send_broadcast(clients, msg, addr_cli)
+        if command == "bcast":
+            send_broadcast(clients, announce, addr_cli)
+
+        # Add friend
+        elif command == "addfriend":
+            # requester = username_cli/sock_cli, target = msg/dest_sock_cli
+            if msg in clients: # cek keberadaan username client
+                if msg == username_cli:
+                    send_msg(sock_cli, "Kamu tidak bisa berteman dengan diri sendiri!")
+                elif msg in clients[username_cli][3]:
+                    send_msg(sock_cli, "Kamu sudah berteman dengan " + msg)
+                else:
+                    # konfirmasi ke sender
+                    send_msg(sock_cli, "Kamu sekarang berteman dengan " + msg)
+                    clients[username_cli][3].add(msg)
+
+                    # konfirmasi ke target
+                    dest_sock_cli = clients[msg][0]
+                    send_msg(dest_sock_cli, "Kamu sekarang berteman dengan " + username_cli)
+                    clients[msg][3].add(username_cli)
+            else:
+                send_msg(sock_cli, "User {} tidak dikenali".format(msg))
+        # Remove Friend
+        elif command == "removefriend":
+            # requester = username_cli/sock_cli, target = msg/dest_sock_cli
+            if msg in clients:
+                if msg == username_cli:
+                    send_msg(sock_cli, "Kamu tidak bisa berteman dengan diri sendiri!")
+                elif msg in clients[username_cli][3]:
+                    # konfirmasi ke sender
+                    send_msg(sock_cli, "Kamu tidak lagi berteman dengan " + msg)
+                    clients[username_cli][3].remove(msg)
+
+                    # konfirmasi ke target
+                    dest_sock_cli = clients[msg][0]
+                    send_msg(dest_sock_cli, "Kamu tidak lagi berteman dengan " + username_cli)
+                    clients[msg][3].remove(username_cli)
+                else:
+                    send_msg(sock_cli, "Kamu belum berteman dengan " + msg)
+            else:
+                send_msg(sock_cli, "User {} tidak dikenali".format(msg))
+        # Friend Lists
+        elif command == "friendlist":
+            if len(clients[username_cli][3]) == 0 :
+                send_msg(sock_cli, "Kamu belum memiliki teman")
+            else:
+                send_msg(sock_cli, "Daftar Teman: " + str(clients[username_cli][3]))
+        # Send to Friends
+        elif command == "friends":
+            for friend in clients[username_cli][3]:
+                dest_sock_cli = clients[friend][0]
+                send_msg(dest_sock_cli, announce)
+        # elif command == "download":
+
         else:
-            for dest_sock_cli, dest_addr_cli, dest_username_cli in clients.values():
-                print(dest)
-                print(dest_username_cli)
-                if dest_username_cli == dest:
-                    print("Kirim pesan")
-                    send_msg(dest_sock_cli, msg)
+            try:
+                dest_sock_cli = clients[command][0]
+                send_msg(dest_sock_cli, announce)
+            except:
+                send_msg(sock_cli, "Command atau User {} tidak dikenali".format(command))
+
+        print(announce)
 
     # client dc
+    for client in clients:
+        if username_cli in clients[client][3]:
+            clients[client][3].remove(username_cli)
     sock_cli.close()
     print("Connection closed", addr_cli)
 
 # fungsi broadcast
 def send_broadcast(clients, data, sender_addr_cli):
-    for sock_cli, addr_cli, username_cli in clients.values():
+    for sock_cli, addr_cli, username_cli, friends_cli in clients.values():
         if not (addr_cli[0] == sender_addr_cli[0] and addr_cli[1] == sender_addr_cli[1]):
             send_msg(sock_cli,data)
 
@@ -61,5 +121,7 @@ while True:
     thread_cli = threading.Thread(target=read_msg, args=(clients, sock_cli, addr_cli, username_cli))
     thread_cli.start()
 
-    #simpan info ttg client ke dictionary
-    clients[username_cli] = (sock_cli, addr_cli, thread_cli)
+    friends_cli = set()
+
+    # simpan info ttg client ke dictionary
+    clients[username_cli] = (sock_cli, addr_cli, thread_cli, friends_cli)

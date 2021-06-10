@@ -26,9 +26,9 @@ thread_cli.start()
 
 while True:
     # kirim/terima pesan
-    dest = input("Masukkan username tujuan (bcast untuk broadcast pesan):")
-    msg = input("Masukkan pesan: ")
+    command = input("Masukkan Command/Tujuan: ")
+    msg = input("Masukkan Argumen/Pesan: ")
     if msg == "exit":
         sock_cli.close()
         break
-    sock_cli.send(bytes("{}|{}".format(dest, msg), "utf_8"))
+    sock_cli.send(bytes("{}|{}".format(command, msg), "utf_8"))
