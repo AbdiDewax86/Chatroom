@@ -70,8 +70,30 @@ def read_msg(clients, sock_cli, addr_cli, username_cli):
             for friend in clients[username_cli][3]:
                 dest_sock_cli = clients[friend][0]
                 send_msg(dest_sock_cli, announce)
-        # elif command == "download":
+        elif command == "sendfile":
+            # setelah sendfile, cek string msg untuk melihat target user dan nama file yang akan dikirim
+            msg = msg.replace('"', "")
+            target = msg.split()[0] # Username target
 
+            dest_sock_cli = clients[target][0]
+            send_msg(dest_sock_cli, "send")
+
+            header = sock_cli.recv(4096).decode("utf-8")
+            filename = header.partition("name: ")[2]
+            filesize = int(header.split()[1])
+            print(f"[SERVER] {header}")
+            print(f"[SERVER] {filename}, {str(filesize)}")
+
+            filedata = b''
+
+            while True:
+                packet = sock_cli.recv(65535)
+                filedata += packet
+                if len(packet) < 65535:
+                    break
+
+            dest_sock_cli.send(str(header).encode("utf-8"))
+            dest_sock_cli.send(filedata)
         else:
             try:
                 dest_sock_cli = clients[command][0]
